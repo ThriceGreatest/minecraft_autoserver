@@ -1,0 +1,66 @@
+- hosts: minecraft
+  become: yes
+  tasks:
+    - name: Update and install dependencies
+      apt:
+        update_cache: yes
+        name: openjdk-17-jre
+        state: present
+
+    - name: Create Minecraft server directory
+      file:
+        path: /home/ubuntu/minecraft-server
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Download Minecraft server jar
+      get_url:
+        url: https://launcher.mojang.com/v1/objects/1b317820f36a7b6f1c76d384e8465ae9f5c6aaed/server.jar
+        dest: /home/ubuntu/minecraft-server/server.jar
+        mode: '0755'
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Accept EULA
+      copy:
+        content: "eula=true\n"
+        dest: /home/ubuntu/minecraft-server/eula.txt
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Create run.sh script
+      copy:
+        content: |
+          #!/bin/bash
+          java -Xmx2048M -Xms1024M -jar server.jar nogui
+        dest: /home/ubuntu/minecraft-server/run.sh
+        mode: '0755'
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Create systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=Minecraft Server
+          After=network.target
+
+          [Service]
+          User=ubuntu
+          WorkingDirectory=/home/ubuntu/minecraft-server
+          ExecStart=/home/ubuntu/minecraft-server/run.sh
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/minecraft.service
+
+    - name: Reload systemd
+      command: systemctl daemon-reload
+
+    - name: Enable and start Minecraft service
+      systemd:
+        name: minecraft
+        enabled: yes
+        state: started
